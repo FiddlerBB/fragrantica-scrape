@@ -24,9 +24,19 @@ def get_html_frag(p: Playwright, link: str, output: str):
     page = browser.new_page()
     page.goto(f"{link}")
     time.sleep(2)
+    is_enabled = page.evaluate('document.querySelector("button.hollow.button.small").disabled')
+    print("Is Button Disabled:", is_enabled)
+
+    is_covered = page.evaluate('''() => {
+    const button = document.querySelector('button.hollow.button.small');
+    const rect = button.getBoundingClientRect();
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) === button;
+}''')
+    print("Is Button Covered:", not is_covered)
     button_selector = 'button[class="hollow button small"]'
     while True:
         button = page.locator(button_selector)
+
         if button.count() > 0:
             button.click(force=True)
             # page.click(button_selector)
@@ -39,8 +49,6 @@ def get_html_frag(p: Playwright, link: str, output: str):
     with open ('./out/test.html', 'w') as f:
         f.write(content)
     
-
-
 
 def parse_links(designer: str):
     with open(f'./out/{designer}.html', 'r') as f:
@@ -90,9 +98,42 @@ def parse_frag(content: str):
     base_notes = description.split("base notes are ")[1].split(".")[0].replace(' and', ',').strip()
 
     overview_review = parse_pros_cons(html)
+    longevity = get_longevity_sillage_gender_worth(html,'#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(9) > div > div:nth-child(4)')
+    sillage = get_longevity_sillage_gender_worth(html,'#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(9) > div > div:nth-child(5)')
+    gender = get_longevity_sillage_gender_worth(html,'#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(9) > div > div:nth-child(8)')
+    worth = get_longevity_sillage_gender_worth(html, '#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(9) > div > div:nth-child(9)')
+    remind_me_of = get_remind_also_like(html, '#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(10)')
+    also_like = get_remind_also_like(html, '#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(12)')
 
 
-def parse_pros_cons(html: HTMLParser):
+def get_remind_also_like(html: HTMLParser, selector):
+    block = html.css_first(selector)
+    block_name = block.css_first('span').text().strip().lower().replace(' ', '_')
+    res = {block_name: []}
+    
+    for frag in block.css('div[class="carousel-cell"]'):
+        link = frag.css_first('a').attributes['href']
+        full_link = f"{base_url}{link}"
+        designer = link.split('/')[-2].lower().replace('-', '_')
+        name = frag.css_first('img').attributes['alt'].lower().replace(' ', '_')
+        res[block_name].append({'name': name, 'designer': designer, 'link': full_link})
+    return res
+
+def get_longevity_sillage_gender_worth(html: HTMLParser, selector) -> dict:
+    select = html.css_first(selector)
+    block = select.css_first('div > div > span').text().strip().lower()
+
+    rates = select.css('div[class="grid-x grid-margin-x"]')
+    result = {block: {}}
+    for rate in rates:
+        rate_name = rate.css_first('span[class="vote-button-name"]').text().strip().lower()
+        rate_name = ' '.join(rate_name.split())
+        number_rate = rate.css_first('span[class="vote-button-legend"]').text().strip().lower()
+        result[block][rate_name] = number_rate
+    return result
+
+
+def parse_pros_cons(html: HTMLParser)-> dict:
     pros_cons: list[HTMLParser] = html.css('#main-content > div:nth-child(1) > div.small-12.medium-12.large-9.cell > div > div:nth-child(4) > div > div')
     overview_review = {'pros': [], 'cons': []}
     if pros_cons:
@@ -105,7 +146,7 @@ def parse_pros_cons(html: HTMLParser):
 
 
 
-def get_votes(html: HTMLParser, selector: str):
+def get_votes(html: HTMLParser, selector: str) -> dict:
     result = {}
     search_css = html.css_first(selector)
     res = search_css.css('div[style="display: flex; flex-direction: column; justify-content: space-around; cursor: pointer;"]')
@@ -130,14 +171,14 @@ def main():
     #     frags = parse_links(designer)[5]
         
     #     get_fragrances(playwright,frags)
-    # file_path = f"./out/fathom_v.html"
-    # with open(file_path, 'r') as f:
-    #     content = f.read()
-    # parse_frag(content)
+    file_path = f"./out/fathom_v.html"
+    with open(file_path, 'r') as f:
+        content = f.read()
+    parse_frag(content)
 
-# main()
-def test():
-    with sync_playwright() as playwright:
-        url = 'https://www.fragrantica.com/perfume/BeauFort-London/Fathom-V-40732.html'
-        get_html_frag(playwright, url, None)
-test()
+main()
+# def test():
+#     with sync_playwright() as playwright:
+#         url = 'https://www.fragrantica.com/perfume/BeauFort-London/Fathom-V-40732.html'
+#         get_html_frag(playwright, url, None)
+# test()
